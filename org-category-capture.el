@@ -159,6 +159,22 @@ Arbitrary additional ARGS are accepted and forwarded to
   (with-current-buffer (find-file-noselect filepath)
     (apply 'occ-get-value-by-category args)))
 
+(cl-defun occ-map-entries-for-category (category fn &rest args)
+  "Map FN over all entries under the heading for CATEGORY.
+FN is called with point at each entry and results are collected.
+Additional ARGS are passed to `occ-get-category-heading-location'."
+  (save-excursion
+    (let ((category-location (apply 'occ-get-category-heading-location category args)))
+      (when category-location
+        (goto-char category-location)
+        (org-map-entries fn nil 'tree)))))
+
+(defun occ-map-entries-for-category-from-filepath (filepath category fn &rest args)
+  "Map FN over all entries under CATEGORY in FILEPATH.
+Additional ARGS are passed to `occ-map-entries-for-category'."
+  (with-current-buffer (find-file-noselect filepath)
+    (apply 'occ-map-entries-for-category category fn args)))
+
 (cl-defun occ-get-heading-category
     (&key (get-category-from-element 'org-get-heading) &allow-other-keys)
   (let ((element-end (plist-get (cadr (org-element-at-point)) :end)))
