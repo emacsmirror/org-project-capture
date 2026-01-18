@@ -50,7 +50,7 @@
 (defcustom org-project-capture-projects-directory nil
   "Directory to store per-project `org-project-capture' TODOs.
 If non-nil, it would serve as a root directory for storing
-project specific TODOs. Otherwise,
+project specific TODOs.  Otherwise,
 `org-project-capture-per-project-filepath' would be used to build a
 filename related to project root."
   :type '(string)
@@ -58,7 +58,7 @@ filename related to project root."
 
 (defcustom org-project-capture-per-project-filepath "TODO.org"
   "The path (relative to the project or `org-project-capture-projects-directory')
-where todos will be stored. Alternatively you may provide a function that will
+where todos will be stored.  Alternatively you may provide a function that will
 compute this path."
   :type '(choice string function)
   :group 'org-project-capture)
@@ -102,10 +102,12 @@ compute this path."
 ;; Utility functions
 
 (defun org-project-capture-io-action-permitted (filepath)
+  "Return non-nil if IO operations are permitted for FILEPATH."
   (or org-project-capture-allow-tramp-projects
       (eq nil (find-file-name-handler filepath 'file-truename))))
 
 (defun org-project-capture-open-project (name)
+  "Open the project with NAME."
   (let* ((name-to-location
           (org-project-capture-build-category-to-project-path
            org-project-capture-strategy))
@@ -117,10 +119,12 @@ compute this path."
        (cdr entry)))))
 
 (defun org-project-capture-invert-alist (alist)
+  "Swap keys and values in ALIST."
   (mapcar (lambda (entry)
             (cons (cdr entry) (car entry))) alist))
 
 (defun org-project-capture-get-category-from-heading ()
+  "Extract the category from the current org heading, stripping links and counts."
   (let* ((heading (org-get-heading))
          (no-links
           (replace-regexp-in-string
@@ -138,10 +142,12 @@ compute this path."
 
 (cl-defmethod org-project-capture-strategy-get-backend
   ((strategy org-project-capture-base-strategy))
+  "Get the backend for STRATEGY, falling back to the default."
   (or (oref strategy backend) org-project-capture-default-backend))
 
 (cl-defmethod org-project-capture-build-category-to-project-path
   ((strategy org-project-capture-base-strategy))
+  "Build a category to project path alist for STRATEGY."
   (org-project-capture-build-category-to-project-path
    (org-project-capture-strategy-get-backend strategy)))
 
@@ -149,6 +155,7 @@ compute this path."
 ;; One file per project strategy
 
 (defun org-project-capture-get-project-todo-file (project-path)
+  "Get the TODO file path for PROJECT-PATH."
   (let ((project-todos-filepath
          (if (stringp org-project-capture-per-project-filepath)
              org-project-capture-per-project-filepath
@@ -160,12 +167,12 @@ compute this path."
     (concat org-project-capture-directory project-todos-filepath)))
 
 (defun org-project-capture-get-category-from-project-todo-file (project-path)
+  "Get the category from the TODO file for PROJECT-PATH."
   (let ((todo-filepath (org-project-capture-get-project-todo-file project-path)))
     (if (and (org-project-capture-io-action-permitted todo-filepath)
              (file-exists-p todo-filepath))
         (with-current-buffer (find-file-noselect todo-filepath)
-          (org-refresh-category-properties)
-          org-category)
+          (org-get-category (point-min)))
       (org-project-capture-category-from-project-root project-path))))
 
 (defclass org-project-capture-per-project-strategy
@@ -173,23 +180,27 @@ compute this path."
 
 (cl-defmethod occ-get-categories
   ((strategy org-project-capture-per-project-strategy))
+  "Get all categories for per-project STRATEGY."
   (org-project-capture-get-all-categories
    (org-project-capture-strategy-get-backend strategy)))
 
 (cl-defmethod occ-get-existing-categories
   ((strategy org-project-capture-per-project-strategy))
+  "Get categories with existing TODO files for per-project STRATEGY."
   (cl-loop for category in (occ-get-categories strategy)
            when (file-exists-p (occ-get-capture-file strategy category))
            collect category))
 
 (cl-defmethod occ-get-todo-files
   ((strategy org-project-capture-per-project-strategy))
+  "Get all TODO files for per-project STRATEGY."
   (->> (org-project-capture-get-all-project-paths
         (org-project-capture-strategy-get-backend strategy))
        (cl-mapcar 'org-project-capture-get-project-todo-file)))
 
 (cl-defmethod occ-get-capture-file
   ((s org-project-capture-per-project-strategy) category)
+  "Get the capture file for CATEGORY using per-project strategy S."
   (let ((project-root
          (cdr (assoc category
                      (org-project-capture-build-category-to-project-path s)))))
@@ -197,6 +208,7 @@ compute this path."
 
 (cl-defmethod occ-get-capture-marker
   ((strategy org-project-capture-per-project-strategy) context)
+  "Get capture marker for CONTEXT using per-project STRATEGY."
   (with-slots (category) context
     (let* ((filepath (occ-get-capture-file strategy category))
            (file-existed (file-exists-p filepath)))
@@ -207,16 +219,19 @@ compute this path."
 
 (cl-defmethod occ-target-entry-p
   ((_ org-project-capture-per-project-strategy) _context)
+  "Per-project strategy does not target existing entries."
   nil)
 
 
 ;; Single file strategy
 
 (defun org-project-capture-linked-heading (heading)
+  "Create an org link for HEADING that opens the project."
   (org-link-make-string
    (format "elisp:(org-project-capture-open-project \"%s\")" heading) heading))
 
 (defun org-project-capture-build-heading (heading)
+  "Build the display text for HEADING, optionally with links and counts."
   (when org-project-capture-force-linked
     (setq heading (org-project-capture-linked-heading heading)))
   (if org-project-capture-counts-in-heading (concat heading " [/]")
@@ -228,6 +243,7 @@ compute this path."
 
 (cl-defmethod occ-get-categories
   ((strategy org-project-capture-single-file-strategy))
+  "Get all categories for single-file STRATEGY."
   (cl-remove-if
    'null
    (delete-dups
@@ -238,19 +254,23 @@ compute this path."
 
 (cl-defmethod occ-get-existing-categories
   ((_ org-project-capture-single-file-strategy))
+  "Get categories already present in the projects file."
   (occ-get-categories-from-filepath
    org-project-capture-projects-file
    :get-category-from-element 'org-project-capture-get-category-from-heading))
 
 (cl-defmethod occ-get-todo-files ((_ org-project-capture-single-file-strategy))
+  "Return the single projects file as a list."
   (list org-project-capture-projects-file))
 
 (cl-defmethod occ-get-capture-file
   ((_ org-project-capture-single-file-strategy) _c)
+  "Return the projects file for single-file strategy."
   org-project-capture-projects-file)
 
 (cl-defmethod occ-get-capture-marker
   ((strategy org-project-capture-single-file-strategy) context)
+  "Get capture marker for CONTEXT using single-file STRATEGY."
   (with-slots (category) context
     (let ((filepath (occ-get-capture-file strategy category)))
       (with-current-buffer (find-file-noselect filepath)
@@ -266,21 +286,26 @@ compute this path."
 
 (cl-defmethod org-project-capture-target-projects-heading
   ((strategy org-project-capture-single-file-strategy) context)
+  "Navigate to the projects heading for STRATEGY and CONTEXT."
   (with-slots (targeter) strategy
     (when targeter
       (org-project-capture-target-projects-heading targeter context))))
 
 (cl-defmethod org-project-capture-target-within-project
   ((strategy org-project-capture-single-file-strategy) context)
+  "Navigate within the project heading for STRATEGY and CONTEXT."
   (with-slots (targeter) strategy
     (when targeter
       (org-project-capture-target-within-project targeter context))))
 
 (defun org-project-capture-linked-heading-regexp (heading)
+  "Return a regexp matching an org link with HEADING as display text."
   (format "\\[\\[.*?]\\[%s]]" heading))
 
 (cl-defmethod occ-target-entry-p
-  ((_ org-project-capture-single-file-strategy) _c) t)
+  ((_ org-project-capture-single-file-strategy) _c)
+  "Single-file strategy targets existing entries."
+  t)
 
 
 ;; Combine strategies
@@ -291,6 +316,7 @@ compute this path."
 
 (cl-defmethod initialize-instance
   :after ((obj org-project-capture-combine-strategies) &rest _args)
+  "Initialize OBJ with default strategies if not provided."
   (unless (slot-boundp obj 'strategies)
     (setf (slot-value obj 'strategies)
           (list (make-instance 'org-project-capture-per-project-strategy)
@@ -298,29 +324,35 @@ compute this path."
 
 (cl-defmethod occ-get-categories
   ((strategy org-project-capture-combine-strategies))
+  "Get categories from all sub-strategies of STRATEGY."
   (delete-dups (mapcan #'occ-get-categories (oref strategy strategies))))
 
 (cl-defmethod occ-get-existing-categories
   ((strategy org-project-capture-combine-strategies))
+  "Get existing categories from all sub-strategies of STRATEGY."
   (delete-dups
    (mapcan #'occ-get-existing-categories (oref strategy strategies))))
 
 (cl-defmethod occ-get-todo-files
   ((strategy org-project-capture-combine-strategies))
+  "Get TODO files from all sub-strategies of STRATEGY."
   (mapcan #'occ-get-todo-files (oref strategy strategies)))
 
 (cl-defmethod occ-get-capture-marker
   ((strategy org-project-capture-combine-strategies) context)
+  "Get capture marker for CONTEXT from STRATEGY's appropriate sub-strategy."
   (occ-get-capture-marker
    (org-project-capture-select-strategy-from-context strategy context) context))
 
 (cl-defmethod occ-target-entry-p
   ((strategy org-project-capture-combine-strategies) context)
+  "Return whether STRATEGY should target an entry for CONTEXT."
   (occ-target-entry-p
    (org-project-capture-select-strategy-from-context strategy context) context))
 
 (cl-defmethod org-project-capture-select-strategy
   ((strategy org-project-capture-combine-strategies) project-name)
+  "Select from STRATEGY the appropriate sub-strategy for PROJECT-NAME."
   (cl-loop for substrategy in (oref strategy strategies)
            if (--some (string-equal it project-name)
                       (occ-get-existing-categories substrategy))
@@ -329,6 +361,7 @@ compute this path."
 
 (cl-defmethod org-project-capture-select-strategy-from-context
   ((strategy org-project-capture-combine-strategies) context)
+  "Select from STRATEGY the sub-strategy for CONTEXT's category."
   (org-project-capture-select-strategy strategy (oref context category)))
 
 (setq org-project-capture-strategy
@@ -340,6 +373,7 @@ compute this path."
       (make-instance 'org-project-capture-combine-strategies))
 
 (defun org-project-capture-location-for-project (project)
+  "Get the filesystem location for PROJECT."
   (cdr (assoc project
               (org-project-capture-build-category-to-project-path
                org-project-capture-strategy))))
@@ -348,6 +382,9 @@ compute this path."
     (&rest additional-options &key (capture-character "p")
            (capture-template org-project-capture-capture-template)
            (capture-heading "Project Todo") &allow-other-keys)
+  "Create an `org-capture' template entry for project TODOs.
+CAPTURE-CHARACTER is the key, CAPTURE-TEMPLATE is the template string,
+CAPTURE-HEADING is the description.  ADDITIONAL-OPTIONS are passed through."
   (let ((target-fn
          (lambda ()
            (occ-capture-edit-at-marker
@@ -368,6 +405,7 @@ compute this path."
                          ,capture-template ,@additional-options)))
 
 (defun org-project-capture-get-marker-for-category (category)
+  "Get the capture marker for CATEGORY."
   (occ-get-capture-marker
    org-project-capture-strategy
    (make-instance 'occ-context
@@ -377,10 +415,13 @@ compute this path."
                   :template org-project-capture-capture-template)))
 
 (defun org-project-capture-todo-files ()
+  "Return a list of readable TODO files for all projects."
   (--filter (file-readable-p it)
             (occ-get-todo-files org-project-capture-strategy)))
 
 (defun org-project-capture-completing-read (prompt &rest args)
+  "Read a project name with PROMPT using completion.
+ARGS are passed to `completing-read'."
   (apply 'completing-read prompt (occ-get-categories org-project-capture-strategy)
          args))
 
@@ -418,7 +459,7 @@ compute this path."
   "Select a project using a `completing-read' and record a TODO.
 
 If CAPTURE-TEMPLATE is provided use it as the capture template
-for the TODO. ADDITIONAL-OPTIONS will be supplied as though they
+for the TODO.  ADDITIONAL-OPTIONS will be supplied as though they
 were part of the capture template definition."
   (interactive)
   (occ-capture
@@ -436,7 +477,7 @@ were part of the capture template definition."
   "Capture a TODO for the current active project.
 
 If CAPTURE-TEMPLATE is provided use it as the capture template
-for the TODO. ADDITIONAL-OPTIONS will be supplied as though they
+for the TODO.  ADDITIONAL-OPTIONS will be supplied as though they
 were part of the capture template definition."
   (interactive)
   (let ((project-name

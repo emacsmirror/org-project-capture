@@ -43,21 +43,25 @@
 (defcustom occ-auto-insert-category-heading nil
   "Whether to automatically insert the category property."
   :group 'occ
-  :type 'bool)
+  :type 'boolean)
 
 (defclass occ-strategy nil nil :abstract t)
 
-(cl-defmethod occ-get-categories ((_ occ-strategy)))
+(cl-defmethod occ-get-categories ((_ occ-strategy))
+  "Return a list of all available categories for this strategy.")
 
 (cl-defmethod occ-get-existing-categories ((strategy occ-strategy))
+  "Return categories that already have capture locations for STRATEGY."
   (occ-get-categories strategy))
 
-(cl-defmethod occ-get-todo-files ((_ occ-strategy)))
+(cl-defmethod occ-get-todo-files ((_ occ-strategy))
+  "Return a list of files that contain TODOs for this strategy.")
 
 (cl-defmethod occ-get-capture-marker ((_ occ-strategy) _context)
   "Return a marker that corresponds to the capture location for CONTEXT.")
 
-(cl-defmethod occ-target-entry-p ((_ occ-strategy) _context))
+(cl-defmethod occ-target-entry-p ((_ occ-strategy) _context)
+  "Return non-nil if capture should target an existing entry.")
 
 (defclass occ-context ()
   ((category :initarg :category)
@@ -67,6 +71,8 @@
 
 (cl-defmethod occ-build-capture-template
   (context &key (character "p") (heading "Category TODO"))
+  "Build an `org-capture' template from CONTEXT.
+CHARACTER is the selection key and HEADING is the template description."
   (with-slots (template options strategy) context
     (apply 'list character heading 'entry
            (list 'function
@@ -74,29 +80,33 @@
            template options)))
 
 (cl-defmethod occ-capture ((context occ-context))
+  "Initiate an `org-capture' using CONTEXT to determine the target."
   (with-slots (category template options strategy)
       context
     (let* ((org-capture-templates (list (occ-build-capture-template context))))
       (org-capture nil "p"))))
 
 (cl-defmethod occ-capture-edit-at-marker ((context occ-context))
+  "Move to the capture location for CONTEXT in the current window."
   (let ((marker (occ-get-capture-marker context)))
     (set-buffer (marker-buffer marker))
     (goto-char (marker-position marker))))
 
 (cl-defmethod occ-capture-goto-marker ((context occ-context))
+  "Switch to the buffer and position for CONTEXT."
   (let ((marker (occ-get-capture-marker context)))
     (switch-to-buffer (marker-buffer marker))
     (goto-char (marker-position marker))))
 
 (cl-defmethod occ-get-capture-marker ((context occ-context))
+  "Get the capture marker for CONTEXT by delegating to its strategy."
   (occ-get-capture-marker (oref context strategy) context))
 
 (cl-defun occ-get-category-heading-location
     (category &rest args &key goto-subheading &allow-other-keys)
   "Find a heading with text or category CATEGORY.
 
-ARGS are passed on to `occ-get-heading-category'. GOTO-SUBHEADING
+ARGS are passed on to `occ-get-heading-category'.  GOTO-SUBHEADING
 allows the selection of a subheading within the heading."
   (save-excursion
     (when goto-subheading (funcall goto-subheading))
@@ -114,10 +124,12 @@ allows the selection of a subheading within the heading."
       (error "Can't get category heading in non org-mode file"))))
 
 (defun occ-insert-after-current-heading ()
+  "Insert a new heading after the current heading."
   (org-end-of-line)
   (org-insert-heading t t t))
 
 (defun occ-insert-at-end-of-file ()
+  "Insert a new heading at the end of the file."
   (goto-char (point-max))
   (org-insert-heading t t t))
 
@@ -128,8 +140,8 @@ allows the selection of a subheading within the heading."
   "Navigate to the heading for CATEGORY, creating one if it does not exist.
 
 BUILD-HEADING will be applied to category to create the heading
-text. INSERT-HEADING-FN is the function that will be used to
-create the new bullet for the category heading. This function is
+text.  INSERT-HEADING-FN is the function that will be used to
+create the new bullet for the category heading.  This function is
 tuned so that by default it looks and creates top level headings.
 Arbitrary additional ARGS are accepted and forwarded to
 `occ-get-category-heading-location'."
@@ -142,20 +154,25 @@ Arbitrary additional ARGS are accepted and forwarded to
       (insert (funcall build-heading category)))))
 
 (defun occ-end-of-properties ()
+  "Move point to the end of the property block, or end of line if none."
   (let ((pb (org-get-property-block (point))))
     (when pb (goto-char (cdr pb))))
   (end-of-line))
 
 (defun occ-insert-subheading ()
+  "Insert a subheading after the current heading's properties."
   (occ-end-of-properties)
   (org-insert-subheading t))
 
 (defun occ-level-filter (level)
+  "Return a filter function that skips entries not at LEVEL."
   (lambda ()
     (unless (equal (org-current-level) level)
       (point))))
 
 (defun occ-get-value-by-category-from-filepath (filepath &rest args)
+  "Get category values from FILEPATH.
+ARGS are passed to `occ-get-value-by-category'."
   (with-current-buffer (find-file-noselect filepath)
     (apply 'occ-get-value-by-category args)))
 
@@ -177,6 +194,8 @@ Additional ARGS are passed to `occ-map-entries-for-category'."
 
 (cl-defun occ-get-heading-category
     (&key (get-category-from-element 'org-get-heading) &allow-other-keys)
+  "Get the category of the current heading.
+GET-CATEGORY-FROM-ELEMENT extracts the category from the heading."
   (let ((element-end (plist-get (cadr (org-element-at-point)) :end)))
     (if (save-excursion
           (re-search-forward (org-re-property "CATEGORY") element-end t))
@@ -189,7 +208,10 @@ Additional ARGS are passed to `occ-map-entries-for-category'."
 
 (cl-defun occ-get-value-by-category
     (&rest args &key goto-subtree property-fn &allow-other-keys)
-  (org-refresh-category-properties)
+  "Return an alist of categories to property values.
+GOTO-SUBTREE is a function to navigate to the subtree to scan.
+PROPERTY-FN extracts the value to associate with each category.
+Additional ARGS are passed to `occ-get-heading-category'."
   (when goto-subtree (funcall goto-subtree))
   (org-map-entries
    (lambda ()
@@ -199,18 +221,25 @@ Additional ARGS are passed to `occ-map-entries-for-category'."
    (occ-level-filter (if goto-subtree (1+ (org-current-level)) 1))))
 
 (defun occ-get-property-by-category-from-filepath (filepath property &rest args)
+  "Get PROPERTY values by category from FILEPATH.
+ARGS are passed to `occ-get-value-by-category-from-filepath'."
   (apply 'occ-get-value-by-category-from-filepath filepath
          :property-fn (lambda () (org-entry-get (point) property)) args))
 
 (defun occ-read-property-by-category-from-filepath (filepath property &rest args)
+  "Read and evaluate PROPERTY values by category from FILEPATH.
+ARGS are passed to `occ-get-value-by-category-from-filepath'."
   (apply 'occ-get-value-by-category-from-filepath filepath
          :property-fn (lambda () (let ((p (org-entry-get (point) property)))
                                    (when p (read p)))) args))
 
 (defun occ-get-categories-from-filepath (&rest args)
+  "Get a list of categories from a filepath.
+ARGS are passed to `occ-get-value-by-category-from-filepath'."
   (mapcar 'car (apply 'occ-get-value-by-category-from-filepath args)))
 
 (defun occ-get-categories-from-headline (filepath headline)
+  "Get categories under HEADLINE in FILEPATH."
   (occ-get-categories-from-filepath
    filepath :goto-subtree
    (lambda () (goto-char (org-find-exact-headline-in-buffer

@@ -45,10 +45,12 @@
 
 (cl-defmethod org-project-capture-get-all-project-paths
   ((_ org-project-capture-projectile-backend))
+  "Return all known project paths from projectile."
   projectile-known-projects)
 
 (cl-defmethod org-project-capture-project-root-of-filepath
   ((_ org-project-capture-projectile-backend) filepath)
+  "Return the project root for FILEPATH using projectile."
   (let ((dir (file-name-directory filepath)))
     (--some (let* ((cache-key (format "%s-%s" it dir))
                    (cache-value (gethash
@@ -62,14 +64,17 @@
 
 (cl-defmethod org-project-capture-switch-to-project
   ((_ org-project-capture-projectile-backend) directory)
-    (when directory
-      (projectile-switch-project-by-name directory)))
+  "Switch to the project at DIRECTORY using projectile."
+  (when directory
+    (projectile-switch-project-by-name directory)))
 
 (cl-defmethod org-project-capture-current-project
   ((_backend org-project-capture-projectile-backend))
+  "Return the current project name using projectile."
   (projectile-project-name))
 
 (defun org-projectile-to-project-capture-setter (symbol value)
+  "Set SYMBOL to VALUE and mirror to org-project-capture equivalent."
   (set-default symbol value)
   (let ((new-var (intern (replace-regexp-in-string
                           "org-projectile"
@@ -96,7 +101,7 @@
 (defcustom org-projectile-projects-directory nil
   "Directory to store per-project `org-projectile' TODOs.
 If non-nil, it would serve as a root directory for storing
-project specific TODOs. Otherwise,
+project specific TODOs.  Otherwise,
 `org-projectile-per-project-filepath' would be used to build a
 filename related to project root."
   :type '(string)
@@ -105,7 +110,7 @@ filename related to project root."
 
 (defcustom org-projectile-per-project-filepath nil
   "The path (relative to the project or `org-projectile-projects-directory')
-where todos will be stored. Alternatively you may provide a function that will
+where todos will be stored.  Alternatively you may provide a function that will
 compute this path."
   :type '(choice string function)
   :group 'org-projectile
@@ -152,6 +157,7 @@ compute this path."
 
 (cl-defmethod org-project-capture-strategy-get-backend
   ((_ org-projectile-combine-strategies))
+  "Return the projectile backend for combined strategies."
   org-projectile-backend)
 
 (defclass org-projectile-per-project-strategy
@@ -159,6 +165,7 @@ compute this path."
 
 (cl-defmethod org-project-capture-strategy-get-backend
   ((_ org-projectile-per-project-strategy))
+  "Return the projectile backend for per-project strategy."
   org-projectile-backend)
 
 (defclass org-projectile-single-file-strategy
@@ -166,6 +173,7 @@ compute this path."
 
 (cl-defmethod org-project-capture-strategy-get-backend
   ((_ org-projectile-single-file-strategy))
+  "Return the projectile backend for single-file strategy."
   org-projectile-backend)
 
 (defvar org-projectile-strategy (make-instance 'org-projectile-combine-strategies))
@@ -179,6 +187,9 @@ compute this path."
     (&rest additional-options &key (capture-character "p")
            (capture-template org-project-capture-capture-template)
            (capture-heading "Project Todo") &allow-other-keys)
+  "Create an `org-capture' template entry for project TODOs.
+CAPTURE-CHARACTER is the key, CAPTURE-TEMPLATE is the template string,
+CAPTURE-HEADING is the description.  ADDITIONAL-OPTIONS are passed through."
   (let ((target-fn
          (lambda ()
            (occ-capture-edit-at-marker
@@ -199,10 +210,13 @@ compute this path."
                          ,capture-template ,@additional-options)))
 
 (defun org-projectile-todo-files ()
+  "Return a list of readable TODO files for all projects."
   (declare (obsolete org-project-capture-todo-files "3.0.1"))
   (--filter (file-readable-p it) (occ-get-todo-files org-projectile-strategy)))
 
 (defun org-projectile-completing-read (prompt &rest args)
+  "Read a project name with PROMPT using completion.
+ARGS are passed to `completing-read'."
   (apply 'completing-read prompt (occ-get-categories org-projectile-strategy)
          args))
 
@@ -244,7 +258,7 @@ compute this path."
   "Select a project using a `completing-read' and record a TODO.
 
 If CAPTURE-TEMPLATE is provided use it as the capture template
-for the TODO. ADDITIONAL-OPTIONS will be supplied as though they
+for the TODO.  ADDITIONAL-OPTIONS will be supplied as though they
 were part of the capture template definition."
   (declare (obsolete org-project-capture-project-todo-completing-read "3.0.1"))
   (interactive)
@@ -263,7 +277,7 @@ were part of the capture template definition."
   "Capture a TODO for the current active project.
 
 If CAPTURE-TEMPLATE is provided use it as the capture template
-for the TODO. ADDITIONAL-OPTIONS will be supplied as though they
+for the TODO.  ADDITIONAL-OPTIONS will be supplied as though they
 were part of the capture template definition."
   (declare (obsolete org-project-capture-capture-for-current-project "3.0.1"))
   (interactive)

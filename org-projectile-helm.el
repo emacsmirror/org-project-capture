@@ -36,6 +36,8 @@
 
 (defun org-projectile-helm-prompt-for-and-move-to-subheading
   (subheadings-to-point)
+  "Prompt for a subheading using helm and move point there.
+SUBHEADINGS-TO-POINT is an alist of subheading names to positions."
   (cond ((eq projectile-completion-system 'helm)
           (let ((selection
                   (helm :sources (org-projectile-helm-subheadings-source
@@ -43,10 +45,13 @@
             (goto-char selection)))))
 
 (defun org-projectile-helm-subheadings-source (subheadings-to-point)
+  "Create a helm source for selecting from SUBHEADINGS-TO-POINT."
   (helm-build-sync-source "Choose a subheading:"
     :candidates subheadings-to-point))
 
 (defun org-projectile-helm-source (&optional capture-template)
+  "Create a helm source for project capture.
+CAPTURE-TEMPLATE is the template to use for capture."
   (helm-build-sync-source "Org Capture Options:"
     :candidates (cl-loop for project in
                          (occ-get-categories org-projectile-strategy) collect
