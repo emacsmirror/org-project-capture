@@ -32,8 +32,15 @@
 (require 'eieio)
 (require 'org)
 (require 'org-capture)
+(require 'org-element)
 ;; XXX: dired-buffers is used below
 (require 'dired)
+
+;; Compatibility for org-element-end which was added in org 9.6
+(unless (fboundp 'org-element-end)
+  (defun org-element-end (node)
+    "Return end position of NODE."
+    (plist-get (cadr node) :end)))
 
 (defgroup occ ()
   "Customizations for org-category-capture."
