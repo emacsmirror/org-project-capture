@@ -196,7 +196,7 @@ Additional ARGS are passed to `occ-map-entries-for-category'."
     (&key (get-category-from-element 'org-get-heading) &allow-other-keys)
   "Get the category of the current heading.
 GET-CATEGORY-FROM-ELEMENT extracts the category from the heading."
-  (let ((element-end (plist-get (cadr (org-element-at-point)) :end)))
+  (let ((element-end (org-element-end (org-element-at-point))))
     (if (save-excursion
           (re-search-forward (org-re-property "CATEGORY") element-end t))
         (org-get-category)
